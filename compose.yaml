@@ -1,0 +1,15 @@
+services:
+  chrome-vnc:
+    build: .
+    # ポート設定 (ホスト側:コンテナ側)
+    ports:
+      - "9222:9222" # Selenium用のポート
+      - "3390:3389" # RDP接続用 (任意)
+    volumes:
+      - chrome-profile:/data
+      - .:/app
+    shm_size: '2gb'
+
+# データの永続化に使うDocker Volumeを定義
+volumes:
+  chrome-profile:
