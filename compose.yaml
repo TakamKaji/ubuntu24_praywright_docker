@@ -1,9 +1,8 @@
 services:
-  chrome-vnc:
+  ubuntu-vnc:
     build: .
     # ポート設定 (ホスト側:コンテナ側)
     ports:
-      - "9222:9222" # Selenium用のポート
       - "3390:3389" # RDP接続用 (任意)
     volumes:
       - chrome-profile:/data

@@ -1,0 +1,8 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Run Scraping Tool
+Comment=Launch Menu
+Exec=xfce4-terminal -e "bash /app/run_menu.sh"
+Icon=utilities-terminal
+Terminal=false

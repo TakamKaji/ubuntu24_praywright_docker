@@ -1,0 +1,8 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Google Chrome
+Comment=Browse the Web
+Exec=google-chrome-stable --no-sandbox
+Icon=google-chrome
+Terminal=false
