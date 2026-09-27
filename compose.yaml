@@ -1,14 +1,17 @@
 services:
   ubuntu-vnc:
     build: .
-    # ポート設定 (ホスト側:コンテナ側)
     ports:
-      - "3390:3389" # RDP接続用 (任意)
+      - "127.0.0.1:3390:3389"
+    environment:
+      NOTE_CDP_URL: "http://127.0.0.1:9222"
+      NOTE_POLL_SECONDS: "${NOTE_POLL_SECONDS:-1800}"
+      NOTE_WATCH_FILE: "/app/note_watch_list.csv"
+      NOTE_OUTPUT_DIR: "/app/result/note"
     volumes:
       - chrome-profile:/data
       - .:/app
-    shm_size: '2gb'
+    shm_size: "2gb"
 
-# データの永続化に使うDocker Volumeを定義
 volumes:
   chrome-profile:

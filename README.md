@@ -1,84 +1,164 @@
-# Web Crawling & Markdown Merging Suite (Docker Edition)
+# Web Crawling & Markdown Suite (Docker Edition)
 
-あらゆるWebサイトのドキュメントや記事を自動で収集し、AI（LLM）が読み込みやすいクリーンなMarkdownやテキスト形式に変換・保存する強力なスクレイピングスイートです。
+Ubuntu 24.04 + XFCE/RDP + Google Chrome Stable + Playwright をまとめた、ローカルPC常駐向けの収集環境です。
+汎用スクレイパーに加えて、ログイン済みの通常Google Chromeを使う `note.com` 専用collectorを搭載しています。
 
-ブラウザの自動操作（Playwright）と、完全な日本語GUI（リモートデスクトップ）をDockerコンテナ上に統合。自身のPC環境を一切汚さず、安全かつ安定してデータ収集を行えます。
+## note collector
 
-## ✨ 特徴
+### 目的
 
-* **GUI操作と自動化の融合:** RDP（リモートデスクトップ）で実際のブラウザ画面を見ながら操作可能。Bot検知が厳しいサイトでも、手動でログインしてから自動化ツールに引き継ぐことができます。
-* **セッションの永続化:** コンテナを再起動しても、ログイン状態（Cookieやキャッシュ）は安全な内部ボリュームに保持されます。
-* **汎用的なサイト対応:** 特定のサイトに依存せず、遅延読み込み（Lazy Load）や「さらに表示」ボタンを展開しながら、ページ全体を漏れなく取得します。
-* **AI・RAGへの最適化:** 取得したHTMLから不要な装飾やナビゲーションを削ぎ落とし、プレーンな `.md` または `.txt` として保存します。
+note.com の監視対象から新着記事だけを取得し、次の自己完結形式で保存します。
 
----
+```text
+result/note/
+├─ latest_status.json
+├─ index.json
+└─ YYYY-MM-DD_<note-id>/
+   ├─ <記事タイトル>.md
+   ├─ metadata.json
+   └─ images/
+      ├─ 001.webp
+      ├─ 002.jpg
+      └─ ...
+```
 
-## 💻 前提条件
+画像は原則として配信元の形式を維持します。Markdown内の画像URLは `images/001.webp` のようなローカル相対パスへ置換されます。
+既に取得済みの記事は `index.json` を基準にskipし、一覧側で更新日時が新しくなった記事だけ再取得します。
 
-* **Docker Desktop** がインストールされ、起動していること。
-* Windows標準の「リモートデスクトップ接続」アプリが使用できること。
+### 構成
 
----
+- ブラウザ: Docker内の `google-chrome-stable`
+- profile: `/data/chrome-profile` (Docker named volumeで永続化)
+- 操作: Playwrightが起動済みChromeへCDP接続
+- Markdown化: Crawl4AI `DefaultMarkdownGenerator`
+- 巡回: Supervisor上の `note_collector.py --daemon`
+- 既定間隔: 1800秒
+- 保存先: `./result/note`
 
-## 🚀 導入と起動の手順
+Playwright自身のChromiumはnoteログインには使用しません。初回ログインも巡回も同じGoogle Chrome profileを使います。
 
-1. このフォルダ（リポジトリ）を任意の場所に配置します。
-2. フォルダ内にある `1_start_gui.bat` をダブルクリックして実行します。
-3. 初回はDockerイメージのビルドが行われます（数分かかります）。
-4. ビルド完了後、自動的にリモートデスクトップ画面が立ち上がります。
-5. 以下の情報でログインしてください。
-   * **ユーザー名:** `dockeruser`
-   * **パスワード:** `password`
+## 初回セットアップ
 
----
+1. `1_start_gui.bat` を実行してDockerをbuild/startします。
+2. RDPへ `dockeruser / password` でログインします。
+3. デスクトップの **Google Chrome (note collector)** を起動します。
+4. Chrome上でnote.comへ人間が手動ログインします。
+5. `note_watch_list.csv` に監視URLを追加します。
 
-## 📖 基本的な使い方（自動化のフロー）
+Chromeは次の条件で起動します。
 
-RDP（リモートデスクトップ）の画面上に配置された2つのアイコンを使います。
+```text
+google-chrome-stable
+  --user-data-dir=/data/chrome-profile
+  --remote-debugging-port=9222
+  --remote-debugging-address=127.0.0.1
+```
 
-### Step 1. ブラウザの準備とログイン（初回のみ）
-1. デスクトップにある **`Playwright Browser`** アイコンをダブルクリックします。
-2. 黒いターミナル画面と同時に、ブラウザ（Chromium）が立ち上がります。
-3. 収集対象のサイト（例: note.com など）にアクセスし、手動でログインを済ませてください。
-   *(ここでログインした状態は保存され、ツール実行時にも引き継がれます)*
-4. ログインが完了したら、ブラウザとターミナルを閉じます。
+CDPポート9222はDockerホストへ公開しません。
 
-### Step 2. 収集対象URLのリストアップ (Seeder)
-1. 付属の `watch_list.csv` をメモ帳やExcelで開き、収集の起点となるURLを登録します。（※ファイル内のコメント表記を参考にしてください）
-2. デスクトップの **`Run Scraping Tool`** アイコンをダブルクリックし、メニューを開きます。
-3. メニューから `url_seeder_generic.py` を選択して実行します。
-4. 指定した起点URLから同一サイト内のリンクを自動探索し、リスト（`url_list.csv`）を生成します。
+## 監視対象
 
-### Step 3. 記事の自動収集と変換 (Fetcher)
-1. 再度 **`Run Scraping Tool`** メニューを開きます。
-2. `universal_fetcher.py` を選択して実行します。
-3. 生成されたリストをもとに、ブラウザが自動で各ページを巡回し、ドキュメントをダウンロード・変換します。
+`note_watch_list.csv`:
 
-### Step 4. ファイルの取り出し
-1. 収集が完了したデータは、このフォルダ（リポジトリ）内にある `result` フォルダなどに直接保存されています。
-2. ホストPC（Windows側）とコンテナ内でフォルダが共有されているため、特別な取り出し作業やスクリプトの実行は不要です。そのままWindows側でファイルを開いて確認できます。
+```csv
+# name,url
+market_report,https://note.com/example
+```
 
----
+クリエイターページ、マガジン等の記事一覧URLを指定できます。
+単独の記事URLを指定して1件だけ管理することもできます。
 
-## 📂 同梱スクリプト（Windows側）の説明
+## 自動巡回
 
-* **`1_start_gui.bat`**: 環境をビルド・起動し、RDP接続を開始します。
-* **`2_stop_gui.bat`**: コンテナを停止します（データは消えません）。次回起動を高速化します。
+`note-collector` はSupervisorから常駐起動されます。
 
----
+Chromeが起動していない間は記事取得を行わず、
 
-## 🛠️ トラブルシューティング
+```json
+{"status": "browser_down"}
+```
 
-**Q. 自動スクレイピング中にエラーが起きて止まる** A. ターゲットサイトの仕様変更や一時的な通信エラーが原因です。ツールはエラーをスキップして次のURLへ進むよう設計されています。エラーが頻発する場合は `Playwright Browser` を起動し、対象サイトに手動でアクセスしてロボット認証などが出ていないか確認してください。
+を `result/note/latest_status.json` に記録します。
 
-**Q. `watch_list.csv` を読み込んでくれない** A. カンマ（`,`）が全角になっていないか、文字コードがUTF-8で保存されているか確認してください。また、行の先頭に `#` を付けるとその行は無視されます。
+Chromeが起動してnoteにログイン済みなら、既定では30分ごとに新着を確認します。
+間隔はホスト側で `NOTE_POLL_SECONDS` を設定して変更できます。
 
----
+PowerShell例:
 
-## ⚠️ セキュリティに関する注意
+```powershell
+$env:NOTE_POLL_SECONDS="3600"
+docker compose up -d --build
+```
 
-> **本環境はローカルPCでの個人利用を前提としています。** コンテナ内のユーザー（`dockeruser` / `root`）のパスワードは `password` に固定されており、認証としての安全性はありません。
+### 今すぐ1回取得
 
-* `compose.yaml` のポートバインドは `127.0.0.1:3389:3389` のようにローカルホストに限定してください（デフォルト設定）。
-* **外部に公開されるサーバー（VPS・クラウドインスタンスなど）でこのコンテナをそのまま稼働させないでください。** 第三者からRDP接続されるリスクがあります。
-* やむを得ず外部環境で使用する場合は、パスワードの変更、ファイアウォールによるポート制限、VPN経由のアクセスに限定するなどの対策を必ず実施してください。
+Windowsでは `3_note_fetch_now.bat` を実行します。
+
+または:
+
+```bash
+docker compose exec -T ubuntu-vnc \
+  /opt/venv/bin/python /app/code/note_collector.py --once
+```
+
+常駐collectorと同時実行になった場合はlockにより二重取得を防止します。
+
+## ステータス
+
+`result/note/latest_status.json` の主な状態:
+
+- `idle`: `note_watch_list.csv` に監視先がない
+- `browser_down`: Google Chrome/CDPへ接続できない
+- `auth_required`: noteの再ログインが必要
+- `running`: 取得処理中
+- `ok`: 正常完了
+- `partial_error`: 一部の記事または監視URLで失敗
+
+コンテナログも確認できます。
+
+```bash
+docker compose logs -f ubuntu-vnc
+```
+
+## 保存内容
+
+`metadata.json` には最低限以下を保存します。
+
+- source URL
+- note ID
+- 記事タイトル
+- 公開日時
+- 更新日時
+- 取得日時
+- Markdownファイル名
+- 保存画像と元URL
+- 画像取得エラー
+
+記事ファイル名には記事タイトルを使用し、Windowsで使えない文字だけ除去します。
+フォルダ名は `<公開日>_<note-id>` なので、同名記事でも衝突しません。
+
+## 既存の汎用スクレイパー
+
+既存の `url_seeder_generic.py` と `universal_fetcher.py` は残しています。
+従来用途では `Playwright Browser` を使用できますが、note collectorは **Google Chrome (note collector)** を使用してください。
+
+## セッション永続化
+
+noteのCookie/profileはDocker volumeの `/data/chrome-profile` に保存されるため、通常のコンテナstop/startでは維持されます。
+ただしnoteまたは認証側でセッションが失効した場合は、RDPからGoogle Chromeを開いて再ログインしてください。
+collector自身はログイン操作を自動化しません。
+
+## セキュリティ
+
+本環境はローカルPCでの個人利用を前提としています。
+
+- RDPは `127.0.0.1:3390` のみにbindします。
+- Chrome CDPの9222番はDocker外へ公開しません。
+- `/data/chrome-profile` にはログインCookieが含まれるため、バックアップや共有には注意してください。
+- `dockeruser` / `root` の既定パスワードは `password` です。外部公開環境では使用しないでください。
+
+## 今後の拡張
+
+collectorの定期実行はDocker内だけで完結させ、ChatGPT/MCPには依存させません。
+将来MCP Serverを追加する場合は `latest_status.json` とcollectorのcommandを利用して、
+`health`, `latest_status`, `fetch_now`, `retry_article`, `sync_drive` を提供する想定です。

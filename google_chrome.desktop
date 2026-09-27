@@ -1,8 +1,8 @@
 [Desktop Entry]
 Version=1.0
 Type=Application
-Name=Google Chrome
-Comment=Browse the Web
-Exec=google-chrome-stable --no-sandbox
+Name=Google Chrome (note collector)
+Comment=Launch persistent Google Chrome for note.com collection
+Exec=bash -lc "bash /app/launch_chrome.sh"
 Icon=google-chrome
 Terminal=false

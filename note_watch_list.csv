@@ -1,0 +1,6 @@
+# name,url
+# 監視したいnoteのクリエイターページ、マガジン、記事一覧URLを追加してください。
+# 直接記事URL (https://note.com/<user>/n/<note-id>) も指定できます。
+#
+# 例:
+# market_report,https://note.com/example
