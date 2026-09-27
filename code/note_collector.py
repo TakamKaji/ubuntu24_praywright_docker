@@ -1,6 +1,7 @@
 import argparse
 import asyncio
 import csv
+import fcntl
 import json
 import mimetypes
 import os
@@ -150,19 +151,21 @@ def write_status(status: str, **extra) -> None:
 class CollectorLock:
     def __enter__(self):
         OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+        self._fh = LOCK_FILE.open("a+", encoding="utf-8")
         try:
-            fd = os.open(LOCK_FILE, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
-        except FileExistsError as exc:
-            raise RuntimeError(f"collector is already running: {LOCK_FILE}") from exc
-        with os.fdopen(fd, "w", encoding="utf-8") as fh:
-            fh.write(f"{os.getpid()}\n")
+            fcntl.flock(self._fh.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            self._fh.close()
+            raise
+        self._fh.seek(0)
+        self._fh.truncate()
+        self._fh.write(f"{os.getpid()}\n")
+        self._fh.flush()
         return self
 
     def __exit__(self, exc_type, exc, tb):
-        try:
-            LOCK_FILE.unlink(missing_ok=True)
-        except OSError:
-            pass
+        fcntl.flock(self._fh.fileno(), fcntl.LOCK_UN)
+        self._fh.close()
 
 
 async def connect_existing_chrome(playwright) -> tuple[Browser, BrowserContext]:
@@ -589,8 +592,8 @@ async def daemon(interval: int) -> None:
             with CollectorLock():
                 stats = await collect_once()
                 print(json.dumps({"event": "cycle_complete", **stats}, ensure_ascii=False), flush=True)
-        except RuntimeError as exc:
-            print(f"collector busy: {exc}", flush=True)
+        except BlockingIOError:
+            print("collector busy: another collection cycle is running", flush=True)
         except PermissionError as exc:
             print(f"authentication required: {exc}", flush=True)
         except Exception as exc:
@@ -614,8 +617,8 @@ def main() -> int:
                 stats = asyncio.run(collect_once())
             print(json.dumps(stats, ensure_ascii=False, indent=2))
         return 0
-    except RuntimeError as exc:
-        print(str(exc), file=sys.stderr)
+    except BlockingIOError:
+        print("collector is already running", file=sys.stderr)
         return 2
     except PermissionError as exc:
         print(f"note login is required: {exc}", file=sys.stderr)

@@ -33,8 +33,8 @@ echo   リモートデスクトップの画面で、以下の情報を入力し�
 echo   - ユーザー名: dockeruser
 echo   - パスワード: password (Dockerfileで設定したもの)
 echo.
-echo   ログイン後、デスクトップ上の「Launch Google Chrome」アイコンを
-echo   ダブルクリックして、Chromeを起動してください。
+echo   note収集ではデスクトップ上の「Google Chrome (note collector)」を
+echo   ダブルクリックしてChromeを起動し、初回だけnoteへログインしてください。
 echo.
 echo "----------------------------------------------------"
 echo.
